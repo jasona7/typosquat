@@ -1,0 +1,31 @@
+name: Domain Scan
+
+on:
+  schedule:
+    - cron: "0 8 * * *"  # Daily at 8 AM UTC
+  workflow_dispatch: {}
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      - name: Run domain scan
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: find-domains scan --output results --top 25
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-results
+          path: results/*.json
+          retention-days: 30

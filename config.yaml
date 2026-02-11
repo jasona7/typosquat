@@ -1,0 +1,22 @@
+tlds:
+  tier1: [".com", ".net", ".org", ".io", ".ai", ".co"]
+  tier2: [".app", ".dev", ".xyz", ".me", ".gg", ".tv"]
+
+scoring:
+  trend_velocity_weight: 25
+  commercial_value_weight: 25
+  typo_plausibility_weight: 20
+  domain_quality_weight: 15
+  risk_penalty_max: 15
+
+openai:
+  filter_model: "gpt-4o-mini"
+  creative_model: "gpt-4o"
+  scorer_model: "gpt-4o-mini"
+
+rate_limits:
+  dns_delay_ms: 100
+  rdap_delay_ms: 500
+
+max_targets: 50
+max_typos_per_target: 30
