@@ -19,13 +19,15 @@ def main() -> None:
 @click.option("--output", "output_dir", type=click.Path(path_type=Path), default="results", help="Output directory for JSON results")
 @click.option("--top", type=int, default=25, help="Number of top results to display")
 @click.option("--skip-llm", is_flag=True, help="Skip LLM-enhanced steps (use only algorithmic typos)")
+@click.option("--max-per-brand", type=int, default=None, help="Max results per brand in display ranking (default: from config)")
 def scan(
     config_path: Path | None,
     target: str | None,
     output_dir: Path,
     top: int,
     skip_llm: bool,
+    max_per_brand: int | None,
 ) -> None:
     """Run the domain scanning pipeline."""
     cfg = load_config(config_path)
-    run_pipeline(cfg, target=target, output_dir=output_dir, top_n=top, skip_llm=skip_llm)
+    run_pipeline(cfg, target=target, output_dir=output_dir, top_n=top, skip_llm=skip_llm, max_per_brand=max_per_brand)

@@ -125,7 +125,7 @@ def score_domains(
 
         # 5. Risk Penalty (0 to -15)
         udrp_risk = llm_data.get("udrp_risk", 3)
-        risk_penalty = (udrp_risk / 10.0) * scoring.risk_penalty_max
+        risk_penalty = (udrp_risk / 10.0) ** 1.5 * scoring.risk_penalty_max
 
         total = trend_score + commercial_score + plausibility_score + quality_score - risk_penalty
         total = max(0.0, min(100.0, total))

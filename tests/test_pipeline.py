@@ -5,6 +5,7 @@ from unittest.mock import patch, MagicMock
 from find_domains.config import Config, ScoringConfig
 from find_domains.llm.scorer import ScoredDomain, score_domains, _tld_quality_score, _domain_length_score
 from find_domains.checker.availability import AvailabilityResult
+from find_domains.pipeline import _diversify
 from find_domains.report.github_summary import format_summary_table, write_json_report
 from find_domains.trends.google_trends import TrendItem
 from find_domains.typos.generator import TypoCandidate
@@ -66,6 +67,37 @@ class TestScorer:
 
         assert scored[0].score >= scored[1].score
 
+    def test_nonlinear_risk_penalty(self):
+        """High UDRP risk should be penalised more than linearly."""
+        results = [self._make_result()]
+        scoring = ScoringConfig(risk_penalty_max=25)
+
+        # Patch LLM assessments to inject different UDRP levels
+        with patch("find_domains.llm.scorer.chat_json") as mock_chat:
+            # Low risk brand (udrp 3)
+            mock_chat.return_value = {"assessments": [
+                {"brand": "google", "estimated_cpc": 5.0, "commercial_niche": "tech", "udrp_risk": 3}
+            ]}
+            low_risk = score_domains(
+                MagicMock(), "gpt-4o-mini", results, {"google": 1.0}, scoring,
+            )
+
+            # High risk brand (udrp 9)
+            mock_chat.return_value = {"assessments": [
+                {"brand": "google", "estimated_cpc": 5.0, "commercial_niche": "tech", "udrp_risk": 9}
+            ]}
+            high_risk = score_domains(
+                MagicMock(), "gpt-4o-mini", results, {"google": 1.0}, scoring,
+            )
+
+        # The gap between low and high risk should be large
+        gap = low_risk[0].score - high_risk[0].score
+        # With exponential penalty (1.5 exponent) and max=25:
+        #   risk 3 penalty = (0.3)^1.5 * 25 ≈ 4.1
+        #   risk 9 penalty = (0.9)^1.5 * 25 ≈ 21.4
+        #   gap ≈ 17.3
+        assert gap > 15, f"Expected gap > 15 between low/high UDRP risk, got {gap}"
+
 
 class TestReport:
     def test_format_summary_table(self):
@@ -106,3 +138,51 @@ class TestReport:
         assert data["total_results"] == 1
         assert data["domains"][0]["domain"] == "gogle.com"
         assert data["domains"][0]["score"] == 75.5
+
+
+class TestDiversify:
+    def _make_scored(self, domain, original, score):
+        return ScoredDomain(
+            domain=domain, original=original, tld=".com",
+            typo_type="omission", score=score, breakdown={},
+        )
+
+    def test_caps_per_brand(self):
+        scored = [
+            self._make_scored("wndows.com", "Windows", 90),
+            self._make_scored("windws.com", "Windows", 88),
+            self._make_scored("windos.com", "Windows", 85),
+            self._make_scored("winows.com", "Windows", 80),
+            self._make_scored("winddows.com", "Windows", 75),
+            self._make_scored("slacc.com", "Slack", 70),
+        ]
+
+        result = _diversify(scored, max_per_brand=3)
+
+        windows_count = sum(1 for d in result if d.original == "Windows")
+        assert windows_count == 3
+        assert len(result) == 4  # 3 Windows + 1 Slack
+
+    def test_preserves_order(self):
+        scored = [
+            self._make_scored("wndows.com", "Windows", 90),
+            self._make_scored("slacc.com", "Slack", 85),
+            self._make_scored("windws.com", "Windows", 80),
+        ]
+
+        result = _diversify(scored, max_per_brand=1)
+
+        assert result[0].domain == "wndows.com"
+        assert result[1].domain == "slacc.com"
+        assert len(result) == 2
+
+    def test_case_insensitive_brand_matching(self):
+        scored = [
+            self._make_scored("a.com", "Windows", 90),
+            self._make_scored("b.com", "windows", 85),
+            self._make_scored("c.com", "WINDOWS", 80),
+        ]
+
+        result = _diversify(scored, max_per_brand=2)
+
+        assert len(result) == 2

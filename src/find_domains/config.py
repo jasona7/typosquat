@@ -14,7 +14,7 @@ class ScoringConfig:
     commercial_value_weight: int = 25
     typo_plausibility_weight: int = 20
     domain_quality_weight: int = 15
-    risk_penalty_max: int = 15
+    risk_penalty_max: int = 25
 
 
 @dataclass
@@ -39,6 +39,7 @@ class Config:
     rate_limits: RateLimitsConfig = field(default_factory=RateLimitsConfig)
     max_targets: int = 50
     max_typos_per_target: int = 30
+    max_per_brand: int = 3
 
     @property
     def all_tlds(self) -> list[str]:
@@ -62,14 +63,14 @@ def load_config(path: Path | None = None) -> Config:
     rate_raw = raw.get("rate_limits", {})
 
     return Config(
-        tlds_tier1=tlds.get("tier1", Config.tlds_tier1),
-        tlds_tier2=tlds.get("tier2", Config.tlds_tier2),
+        tlds_tier1=tlds.get("tier1", [".com", ".net", ".org", ".io", ".ai", ".co"]),
+        tlds_tier2=tlds.get("tier2", [".app", ".dev", ".xyz", ".me", ".gg", ".tv"]),
         scoring=ScoringConfig(
             trend_velocity_weight=scoring_raw.get("trend_velocity_weight", 25),
             commercial_value_weight=scoring_raw.get("commercial_value_weight", 25),
             typo_plausibility_weight=scoring_raw.get("typo_plausibility_weight", 20),
             domain_quality_weight=scoring_raw.get("domain_quality_weight", 15),
-            risk_penalty_max=scoring_raw.get("risk_penalty_max", 15),
+            risk_penalty_max=scoring_raw.get("risk_penalty_max", 25),
         ),
         openai=OpenAIConfig(
             filter_model=openai_raw.get("filter_model", "gpt-4o-mini"),
@@ -82,4 +83,5 @@ def load_config(path: Path | None = None) -> Config:
         ),
         max_targets=raw.get("max_targets", 50),
         max_typos_per_target=raw.get("max_typos_per_target", 30),
+        max_per_brand=raw.get("max_per_brand", 3),
     )

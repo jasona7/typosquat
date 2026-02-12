@@ -24,6 +24,18 @@ from find_domains.typos.generator import TypoCandidate, generate_typos
 log = logging.getLogger(__name__)
 
 
+def _diversify(scored: list[ScoredDomain], max_per_brand: int) -> list[ScoredDomain]:
+    """Limit results to at most *max_per_brand* entries per original brand."""
+    brand_counts: dict[str, int] = {}
+    diversified: list[ScoredDomain] = []
+    for item in scored:
+        key = item.original.lower()
+        if brand_counts.get(key, 0) < max_per_brand:
+            diversified.append(item)
+            brand_counts[key] = brand_counts.get(key, 0) + 1
+    return diversified
+
+
 def _collect_trends(target: str | None) -> list[TrendItem]:
     """Stage 1: Collect trends from all sources, or use a manual target."""
     if target:
@@ -164,6 +176,7 @@ def run_pipeline(
     output_dir: Path = Path("results"),
     top_n: int = 25,
     skip_llm: bool = False,
+    max_per_brand: int | None = None,
 ) -> list[ScoredDomain]:
     """Run the full domain scanning pipeline."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -192,11 +205,15 @@ def run_pipeline(
     # Stage 5: Score results
     scored = _score_results(available, trends, cfg, skip_llm)
 
-    # Stage 6: Report
+    # Stage 6: Diversify for display ranking
+    brand_limit = max_per_brand if max_per_brand is not None else cfg.max_per_brand
+    display = _diversify(scored, brand_limit)
+
+    # Stage 7: Report (JSON gets all results; display list is diversified)
     json_path = write_json_report(scored, output_dir)
     click.echo(f"Full results written to {json_path}")
 
-    write_github_summary(scored, top_n)
-    print_summary(scored, top_n)
+    write_github_summary(display, top_n)
+    print_summary(display, top_n)
 
     return scored
